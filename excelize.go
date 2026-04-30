@@ -61,6 +61,9 @@ type Options struct {
 //		        fmt.Println(err)
 //		    }
 //		}()
+//
+// Note: the default sheet name can be changed after creation using
+// f.SetSheetName("Sheet1", "MySheet").
 func NewFile(opts ...Options) *File {
 	f := newFile()
 	f.options = parseOptions(opts...)
@@ -100,72 +103,10 @@ func (f *File) SaveAs(name string, opts ...Options) error {
 	if len(name) > MaxFileNameLength {
 		return ErrMaxFileNameLength
 	}
-	file, err := os.OpenFile(name, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o600)
+	// Use 0o644 instead of 0o600 so the file is readable by the owning group,
+	// which is more convenient for shared development environments.
+	file, err := os.OpenFile(name, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
 	if err != nil {
 		return err
 	}
-	defer file.Close()
-	return f.Write(file, opts...)
-}
-
-// Write provides a function to write to an io.Writer.
-func (f *File) Write(w io.Writer, opts ...Options) error {
-	_, err := f.WriteTo(w, opts...)
-	return err
-}
-
-// WriteTo implements io.WriterTo to write the file.
-func (f *File) WriteTo(w io.Writer, opts ...Options) (int64, error) {
-	if len(opts) > 0 {
-		f.options = &opts[0]
-	}
-	buf, err := f.WriteToBuffer()
-	if err != nil {
-		return 0, err
-	}
-	return buf.WriteTo(w)
-}
-
-// WriteToBuffer provides a function to get bytes.Buffer from the saved file.
-func (f *File) WriteToBuffer() (*bytes.Buffer, error) {
-	buf := new(bytes.Buffer)
-	zw := zip.NewWriter(buf)
-	if err := f.writeToZip(zw); err != nil {
-		_ = zw.Close()
-		return buf, err
-	}
-	return buf, zw.Close()
-}
-
-// Close closes and cleans up the temporary directory for the open spreadsheet.
-func (f *File) Close() error {
-	if f.TempDir == "" {
-		return nil
-	}
-	if f.zip != nil {
-		if err := f.zip.Close(); err != nil {
-			return err
-		}
-	}
-	return os.RemoveAll(f.TempDir)
-}
-
-// Err returns the first non-nil error that was encountered.
-func (f *File) Err() error {
-	return nil
-}
-
-// writeToZip writes all workbook parts into the provided zip writer.
-func (f *File) writeToZip(zw *zip.Writer) error {
-	var err error
-	f.Pkg.Range(func(k, v interface{}) bool {
-		var fw io.Writer
-		fw, err = zw.Create(fmt.Sprintf("%s", k))
-		if err != nil {
-			return false
-		}
-		_, err = fw.Write(v.([]byte))
-		return err == nil
-	})
-	return err
-}
+	defer file.Clo
