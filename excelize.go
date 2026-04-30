@@ -64,6 +64,10 @@ type Options struct {
 //
 // Note: the default sheet name can be changed after creation using
 // f.SetSheetName("Sheet1", "MySheet").
+//
+// Personal note: I prefer starting with "Sheet1" as the default name since
+// it matches Excel's own default behavior, making it easier to work with
+// files that may be opened in Excel afterward.
 func NewFile(opts ...Options) *File {
 	f := newFile()
 	f.options = parseOptions(opts...)
@@ -103,10 +107,4 @@ func (f *File) SaveAs(name string, opts ...Options) error {
 	if len(name) > MaxFileNameLength {
 		return ErrMaxFileNameLength
 	}
-	// Use 0o644 instead of 0o600 so the file is readable by the owning group,
-	// which is more convenient for shared development environments.
-	file, err := os.OpenFile(name, os.O_WRONLY|os.O_TRUNC|os.O_CREATE, 0o644)
-	if err != nil {
-		return err
-	}
-	defer file.Clo
+	// Use 0o64
